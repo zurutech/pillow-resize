@@ -101,6 +101,7 @@ protected:
 
     /**
      * \brief -lut Generate lookup table.
+     * https://joelfilho.com/blog/2020/compile_time_lookup_tables_in_cpp/
      * 
      * \tparam Length Number of table elements.  
      * \param[in] f Functor called to generate each elements in the table.
