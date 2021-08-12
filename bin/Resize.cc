@@ -2,7 +2,11 @@
  * Zuru Tech - Strictly Confidential
  * Copyright 2021, Zuru Tech HK Limited, All rights reserved.
  */
+
+#include <sstream>
+
 #include <CLI/CLI.hpp>
+#include <magic_enum.hpp>
 
 #include <opencv2/opencv.hpp>
 
@@ -22,48 +26,85 @@ int main(int argc, char** argv)
                    "input directory with the suffix '_resized'.");
 
     uint width = 0, height = 0;
-    app.add_option("--width", width,
+    app.add_option("--ow,--width", width,
                    "Output image width. (default: 0).\n"
                    "If you want to set the output image size you need to pass "
                    "both width and height.");
-    app.add_option("--height", height, "Output image height. (default: 0)");
+    app.add_option("--oh,--height", height,
+                   "Output image height. (default: 0)");
 
-    double fx = 0, fy = 0;
-    app.add_option(
-        "--fx", fx,
-        "Scale factor along the horizontal axis. (default: 0).\n"
-        "Output image size will automatically computed as image_width*fx.\n"
-        "If you want to set the scale you need to pass "
-        "both fx and fy.");
-    app.add_option(
-        "--fy", fy,
-        "Scale factor along the vertical axis. (default: 0)\n"
-        "Output image size will automatically computed as image_height*fy.");
+    double fx = 0., fy = 0.;
+    app.add_option("--horizontal_scale_factor,--fx", fx,
+                   "Scale factor along the horizontal axis. (default: 0).\n"
+                   "Output image size will automatically computed as "
+                   "image_width*horizontal_scale_factor.\n"
+                   "If you want to set the scale you need to pass "
+                   "both horizontal_scale_factor and vertical_scale_factor.");
+    app.add_option("--vertical_scale_factor,--fy", fy,
+                   "Scale factor along the vertical axis. (default: 0)\n"
+                   "Output image size will automatically computed as "
+                   "image_height*vertical_scale_factor.");
 
-    std::map<std::string, PillowResize::InterpolationMethods> map{
-        {"nearest", PillowResize::InterpolationMethods::INTERPOLATION_NEAREST},
-        {"box", PillowResize::InterpolationMethods::INTERPOLATION_BOX},
-        {"bilinear",
-         PillowResize::InterpolationMethods::INTERPOLATION_BILINEAR},
-        {"hamming", PillowResize::InterpolationMethods::INTERPOLATION_HAMMING},
-        {"bicubic", PillowResize::InterpolationMethods::INTERPOLATION_BICUBIC},
-        {"lanczos", PillowResize::InterpolationMethods::INTERPOLATION_LANCZOS},
+    // enum_names return list of name sorted by enum values.
+    constexpr auto& interpolation_names =
+        magic_enum::enum_names<PillowResize::InterpolationMethods>();
+    std::stringstream interpolation_help;
+    interpolation_help << "Interpolation method. \nValid values in:\n";
+    for (size_t i = 0; i < interpolation_names.size(); ++i) {
+        interpolation_help << interpolation_names[i] << " -> " << i
+                           << std::endl;
+    }
+
+    auto transformArgToEnum = [](const std::string& s) -> std::string {
+        auto isInt = [](const std::string& s, int& value) -> bool {
+            try {
+                value = std::stoi(s);
+                return true;
+            }
+            catch (const std::exception& e) {
+                return false;
+            }
+        };
+
+        std::optional<PillowResize::InterpolationMethods> interpolation;
+        int arg_converted;
+        if (isInt(s, arg_converted)) {
+            interpolation =
+                magic_enum::enum_cast<PillowResize::InterpolationMethods>(
+                    arg_converted);
+        }
+        else {
+            interpolation =
+                magic_enum::enum_cast<PillowResize::InterpolationMethods>(s);
+        }
+        if (!interpolation.has_value()) {
+            throw CLI::ValidationError("Interpolation method not valid.");
+        }
+        return std::to_string(magic_enum::enum_integer(interpolation.value()));
     };
 
     PillowResize::InterpolationMethods interpolation =
         PillowResize::InterpolationMethods::INTERPOLATION_BILINEAR;
-    app.add_option("-m, --method", interpolation, "Interpolation method. \n")
+    app.add_option("-m, --method", interpolation, interpolation_help.str())
         ->required()
-        ->transform(CLI::CheckedTransformer(map, CLI::ignore_case));
+        ->transform(transformArgToEnum);
 
     CLI11_PARSE(app, argc, argv);
 
+    // Check if out_path is empty.
+    // If empty, create out_path from image_path with the suffix _resized.
     if (out_path.empty()) {
         out_path = image_path.parent_path() /
-                   (image_path.stem().string() + "_resized" +
+                   (image_path.stem().string() + "_" +
+                    std::string(magic_enum::enum_name(interpolation)) +
                     image_path.extension().string());
     }
+
     auto out_parent_path = out_path.parent_path();
+    // If image_path is a relative path to the current directory,
+    // its parent path will be empty.
+    // This is necessary in case the library is installed and the binary
+    // is run using its full path (installation folder) from a folder with images.
     if (out_parent_path.empty()) {
         out_path = fs::current_path() / out_path;
         out_parent_path = fs::current_path();

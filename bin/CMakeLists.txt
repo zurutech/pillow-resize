@@ -7,7 +7,11 @@ target_link_libraries(
   PUBLIC # Opencv libraries
          "${OpenCV_LIBS}"
          # CLI
-         CLI11::CLI11 PillowResize)
+         CLI11::CLI11
+         # magic_enum
+         magic_enum::magic_enum
+         # PillowResize lib
+         PillowResize)
 
 # Define compile features: c++17 and no extensions
 target_compile_features(resize PRIVATE cxx_std_17)

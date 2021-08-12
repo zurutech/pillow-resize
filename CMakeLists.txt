@@ -54,6 +54,11 @@ if(NOT TARGET CLI11::CLI11)
   add_subdirectory("${PROJECT_SOURCE_DIR}/libs/CLI11/")
 endif()
 
+# the magic_enum  library
+if(NOT TARGET magic_enum::magic_enum)
+  add_subdirectory("${PROJECT_SOURCE_DIR}/libs/magic_enum/")
+endif()
+
 # updated in the following steps
 set(RESIZE_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/include/PillowResize")
 
