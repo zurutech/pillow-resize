@@ -18,16 +18,22 @@ Options:
   -i,--input TEXT REQUIRED    Input image path.
   -o,--output TEXT            Output image folder. 
                               If empty the output image will be saved in the input directory with the suffix '_resized'.
-  --width UINT                Output image width. (default: 0).
+  --ow,--width UINT           Output image width. (default: 0).
                               If you want to set the output image size you need to pass both width and height.
-  --height UINT               Output image height. (default: 0)
-  --fx FLOAT                  Scale factor along the horizontal axis. (default: 0).
-                              Output image size will automatically computed as image_width*fx.
-                              If you want to set the scale you need to pass both fx and fy.
-  --fy FLOAT                  Scale factor along the vertical axis. (default: 0)
-                              Output image size will automatically computed as image_height*fy.
-  -m,--method ENUM:value in {bicubic->3,bilinear->2,box->4,hamming->5,lanczos->1,nearest->0} OR {3,2,4,5,1,0} REQUIRED
-                              Interpolation method. 
-
-
+  --oh,--height UINT          Output image height. (default: 0)
+  --horizontal_scale_factor,--fx FLOAT
+                              Scale factor along the horizontal axis. (default: 0).
+                              Output image size will automatically computed as image_width*horizontal_scale_factor.
+                              If you want to set the scale you need to pass both horizontal_scale_factor and vertical_scale_factor.
+  --vertical_scale_factor,--fy FLOAT
+                              Scale factor along the vertical axis. (default: 0)
+                              Output image size will automatically computed as image_height*vertical_scale_factor.
+  -m,--method ENUM REQUIRED   Interpolation method. 
+                              Valid values in:
+                              INTERPOLATION_NEAREST -> 0
+                              INTERPOLATION_BOX -> 1
+                              INTERPOLATION_BILINEAR -> 2
+                              INTERPOLATION_HAMMING -> 3
+                              INTERPOLATION_BICUBIC -> 4
+                              INTERPOLATION_LANCZOS -> 5
 ```
