@@ -100,12 +100,12 @@ protected:
     };
 
     /**
-     * \brief -lut Generate lookup table.
+     * \brief _lut Generate lookup table.
      * https://joelfilho.com/blog/2020/compile_time_lookup_tables_in_cpp/
      * 
      * \tparam Length Number of table elements.  
      * \param[in] f Functor called to generate each elements in the table.
-     * \return constexpr auto 
+     * \return An array of length Length with type deduced from Generator output.
      */
     template <size_t Length, typename Generator>
     static constexpr auto _lut(Generator&& f)
