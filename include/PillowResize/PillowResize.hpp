@@ -124,10 +124,10 @@ protected:
      * \tparam Length Number of table elements.
      * \tparam min_val Value of the starting element.
      */
-    template <size_t Length, ssize_t min_val>
+    template <size_t Length, intmax_t min_val>
     static inline constexpr auto _clip8_lut =
         _lut<Length>([](size_t n) -> uchar {
-            ssize_t saturate_val = static_cast<ssize_t>(n) + min_val;
+            intmax_t saturate_val = static_cast<intmax_t>(n) + min_val;
             if (saturate_val < 0) {
                 return 0;
             }
