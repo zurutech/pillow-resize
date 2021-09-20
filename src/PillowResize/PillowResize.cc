@@ -14,11 +14,16 @@
 * limitations under the License.
 */
 
+#include <cmath>
+#include <cstdint>
+#include <utility>
+
 #include <PillowResize/PillowResize.hpp>
 
 double PillowResize::BoxFilter::filter(double x) const
 {
-    if (x > -0.5 && x <= 0.5) {
+    const double half_pixel = 0.5;
+    if (x > -half_pixel && x <= half_pixel) {
         return 1.0;
     }
     return 0.0;
@@ -47,7 +52,7 @@ double PillowResize::HammingFilter::filter(double x) const
         return 0.0;
     }
     x = x * M_PI;
-    return sin(x) / x * (0.54f + 0.46f * cos(x));
+    return sin(x) / x * (0.54F + 0.46F * cos(x));    // NOLINT
 }
 
 double PillowResize::BicubicFilter::filter(double x) const
@@ -57,11 +62,11 @@ double PillowResize::BicubicFilter::filter(double x) const
     if (x < 0.0) {
         x = -x;
     }
-    if (x < 1.0) {
-        return ((a + 2.0) * x - (a + 3.0)) * x * x + 1;
+    if (x < 1.0) {                                         // NOLINT
+        return ((a + 2.0) * x - (a + 3.0)) * x * x + 1;    // NOLINT
     }
-    if (x < 2.0) {
-        return (((x - 5) * x + 8) * x - 4) * a;
+    if (x < 2.0) {                                 // NOLINT
+        return (((x - 5) * x + 8) * x - 4) * a;    // NOLINT
     }
     return 0.0;
 }
@@ -78,8 +83,13 @@ double PillowResize::LanczosFilter::_sincFilter(double x)
 double PillowResize::LanczosFilter::filter(double x) const
 {
     // Truncated sinc.
-    if (-3.0 <= x && x < 3.0) {
-        return _sincFilter(x) * _sincFilter(x / 3);
+    // According to Jim Blinn, the Lanczos kernel (with a = 3)
+    // "keeps low frequencies and rejects high frequencies better
+    // than any (achievable) filter we've seen so far."[3]
+    // (https://en.wikipedia.org/wiki/Lanczos_resampling#Advantages)
+    const double lanczos_a_param = 3.0;
+    if (-lanczos_a_param <= x && x < lanczos_a_param) {
+        return _sincFilter(x) * _sincFilter(x / lanczos_a_param);
     }
     return 0.0;
 }
@@ -93,7 +103,8 @@ int PillowResize::_precomputeCoeffs(int in_size,
                                     std::vector<double>& kk)
 {
     // Prepare for horizontal stretch.
-    double scale, filterscale;
+    double scale = 0;
+    double filterscale = 0;
     filterscale = scale = static_cast<double>(in1 - in0) / out_size;
     if (filterscale < 1.0) {
         filterscale = 1.0;
@@ -116,37 +127,43 @@ int PillowResize::_precomputeCoeffs(int in_size,
     // Bounds vector.
     bounds.resize(out_size * 2);
 
-    int x, xmin, xmax;
-    double center, ww, ss;
+    int x = 0;
+    int xmin = 0;
+    int xmax = 0;
+    double center = 0;
+    double ww = 0;
+    double ss = 0;
+
+    const double half_pixel = 0.5;
     for (int xx = 0; xx < out_size; ++xx) {
-        center = in0 + (xx + 0.5) * scale;
+        center = in0 + (xx + half_pixel) * scale;
         ww = 0.0;
         ss = 1.0 / filterscale;
         // Round the value.
-        xmin = static_cast<int>(center - support + 0.5);
+        xmin = static_cast<int>(center - support + half_pixel);
         if (xmin < 0) {
             xmin = 0;
         }
         // Round the value.
-        xmax = static_cast<int>(center + support + 0.5);
+        xmax = static_cast<int>(center + support + half_pixel);
         if (xmax > in_size) {
             xmax = in_size;
         }
         xmax -= xmin;
         double* k = &kk[xx * k_size];
         for (x = 0; x < xmax; ++x) {
-            double w = filterp->filter((x + xmin - center + 0.5) * ss);
-            k[x] = w;
+            double w = filterp->filter((x + xmin - center + half_pixel) * ss);
+            k[x] = w;    // NOLINT
             ww += w;
         }
         for (x = 0; x < xmax; ++x) {
             if (ww != 0.0) {
-                k[x] /= ww;
+                k[x] /= ww;    // NOLINT
             }
         }
         // Remaining values should stay empty if they are used despite of xmax.
         for (; x < k_size; ++x) {
-            k[x] = 0;
+            k[x] = 0;    // NOLINT
         }
         bounds[xx * 2 + 0] = xmin;
         bounds[xx * 2 + 1] = xmax;
@@ -160,25 +177,31 @@ std::vector<double> PillowResize::_normalizeCoeffs8bpc(
     std::vector<double> kk;
     kk.reserve(prekk.size());
 
+    const double half_pixel = 0.5;
     for (const auto& k : prekk) {
         if (k < 0) {
-            kk.emplace_back(static_cast<int>(-0.5 + k * (1 << precision_bits)));
+            kk.emplace_back(
+                static_cast<int>(-half_pixel + k * (1U << precision_bits)));
         }
         else {
-            kk.emplace_back(static_cast<int>(0.5 + k * (1 << precision_bits)));
+            kk.emplace_back(
+                static_cast<int>(half_pixel + k * (1U << precision_bits)));
         }
     }
     return kk;
 }
 
-cv::Mat PillowResize::resize(const cv::Mat& src, cv::Size out_size, int filter)
+cv::Mat PillowResize::resize(const cv::Mat& src,
+                             const cv::Size& out_size,
+                             int filter)
 {
-    cv::Rect2f box(0, 0, src.size().width, src.size().height);
+    cv::Rect2f box(0.F, 0.F, static_cast<float>(src.size().width),
+                   static_cast<float>(src.size().height));
     return resize(src, out_size, filter, box);
 }
 
 cv::Mat PillowResize::resize(const cv::Mat& src,
-                             cv::Size out_size,
+                             const cv::Size& out_size,
                              int filter,
                              const cv::Rect2f& box)
 {
@@ -186,16 +209,18 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
     // Rect = x0,y0,x1,y1
     cv::Vec4f rect(box.x, box.y, box.x + box.width, box.y + box.height);
 
-    int x_size = out_size.width, y_size = out_size.height;
+    int x_size = out_size.width;
+    int y_size = out_size.height;
     if (x_size < 1 || y_size < 1) {
         throw std::runtime_error("Height and width must be > 0");
     }
 
-    if (rect[0] < 0 || rect[1] < 0) {
+    if (rect[0] < 0.F || rect[1] < 0.F) {
         throw std::runtime_error("Box offset can't be negative");
     }
 
-    if (rect[2] > src.size().width || rect[3] > src.size().height) {
+    if (static_cast<int>(rect[2]) > src.size().width ||
+        static_cast<int>(rect[3]) > src.size().height) {
         throw std::runtime_error("Box can't exceed original image size");
     }
 
@@ -204,39 +229,38 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
     }
 
     // If box's coordinates are int and box size matches requested size
-    if (box.width == x_size && box.height == y_size) {
+    if (static_cast<int>(box.width) == x_size &&
+        static_cast<int>(box.height) == y_size) {
         cv::Rect roi = box;
         return cv::Mat(src, roi);
     }
-    else if (filter == INTERPOLATION_NEAREST) {
+    if (filter == INTERPOLATION_NEAREST) {
         return _nearestResample(src, x_size, y_size, rect);
     }
-    else {
-        std::shared_ptr<Filter> filter_p;
+    std::shared_ptr<Filter> filter_p;
 
-        // Check filter.
-        switch (filter) {
-            case INTERPOLATION_BOX:
-                filter_p = std::make_shared<BoxFilter>(BoxFilter());
-                break;
-            case INTERPOLATION_BILINEAR:
-                filter_p = std::make_shared<BilinearFilter>(BilinearFilter());
-                break;
-            case INTERPOLATION_HAMMING:
-                filter_p = std::make_shared<HammingFilter>(HammingFilter());
-                break;
-            case INTERPOLATION_BICUBIC:
-                filter_p = std::make_shared<BicubicFilter>(BicubicFilter());
-                break;
-            case INTERPOLATION_LANCZOS:
-                filter_p = std::make_shared<LanczosFilter>(LanczosFilter());
-                break;
-            default:
-                throw std::runtime_error("unsupported resampling filter");
-        }
-
-        return PillowResize::_resample(src, x_size, y_size, filter_p, rect);
+    // Check filter.
+    switch (filter) {
+        case INTERPOLATION_BOX:
+            filter_p = std::make_shared<BoxFilter>(BoxFilter());
+            break;
+        case INTERPOLATION_BILINEAR:
+            filter_p = std::make_shared<BilinearFilter>(BilinearFilter());
+            break;
+        case INTERPOLATION_HAMMING:
+            filter_p = std::make_shared<HammingFilter>(HammingFilter());
+            break;
+        case INTERPOLATION_BICUBIC:
+            filter_p = std::make_shared<BicubicFilter>(BicubicFilter());
+            break;
+        case INTERPOLATION_LANCZOS:
+            filter_p = std::make_shared<LanczosFilter>(LanczosFilter());
+            break;
+        default:
+            throw std::runtime_error("unsupported resampling filter");
     }
+
+    return PillowResize::_resample(src, x_size, y_size, filter_p, rect);
 }
 
 cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
@@ -244,7 +268,10 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
                                        int y_size,
                                        const cv::Vec4f& rect)
 {
-    int x0 = rect[0], y0 = rect[1], x1 = rect[2], y1 = rect[3];
+    auto x0 = static_cast<int>(rect[0]);
+    auto y0 = static_cast<int>(rect[1]);
+    auto x1 = static_cast<int>(rect[2]);
+    auto y1 = static_cast<int>(rect[3]);
     x0 = std::max(x0, 0);
     y0 = std::max(y0, 0);
     x1 = std::min(x1, im_in.size().width);
@@ -269,8 +296,9 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
      */
     auto affineTransform = [](const cv::Point& p,
                               const cv::Matx23d& a) -> cv::Point2d {
-        double xin = p.x + 0.5;
-        double yin = p.y + 0.5;
+        const double half_pixel = 0.5;
+        double xin = p.x + half_pixel;
+        double yin = p.y + half_pixel;
 
         double xout = a(0, 0) * xin + a(0, 1) * yin + a(0, 2);
         double yout = a(1, 0) * xin + a(1, 1) * yin + a(1, 2);
@@ -306,7 +334,7 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
 
     // Check pixel type and determine the pixel size
     // (element size * number of channels).
-    size_t pixel_size;
+    size_t pixel_size = 0;
     switch (_getPixelType(im_in)) {
         case CV_8U:
             pixel_size = sizeof(uchar);
@@ -315,16 +343,17 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
             pixel_size = sizeof(char);
             break;
         case CV_16U:
-            pixel_size = sizeof(ushort);
+            pixel_size = sizeof(std::uint16_t);
             break;
         case CV_16S:
-            pixel_size = sizeof(short);
+            pixel_size = sizeof(std::int16_t);
             break;
         case CV_32S:
             pixel_size = sizeof(int);
             break;
         case CV_32F:
             pixel_size = sizeof(float);
+            break;
         default:
             throw std::runtime_error("Pixel type not supported");
     }
@@ -332,11 +361,13 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
 
     for (size_t y = 0; y < im_out.size().height; ++y) {
         for (size_t x = 0; x < im_out.size().width; ++x) {
-            cv::Point out_p(x, y);
+            cv::Point out_p(static_cast<int>(x), static_cast<int>(y));
             // Compute input pixel position (corresponding nearest pixel).
             cv::Point2d p = affineTransform(out_p, m);
             // Copy input pixel into output.
-            nearestInterpolation(im_in, im_out, cv::Point(p.x - x0, p.y - y0),
+            nearestInterpolation(im_in, im_out,
+                                 cv::Point(static_cast<int>(p.x) - x0,
+                                           static_cast<int>(p.y) - y0),
                                  out_p, pixel_size);
         }
     }
@@ -349,15 +380,18 @@ cv::Mat PillowResize::_resample(const cv::Mat& im_in,
                                 const std::shared_ptr<Filter>& filter_p,
                                 const cv::Vec4f& rect)
 {
-    cv::Mat im_out, im_temp;
+    cv::Mat im_out;
+    cv::Mat im_temp;
 
-    std::vector<int> bounds_horiz, bounds_vert;
-    std::vector<double> kk_horiz, kk_vert;
+    std::vector<int> bounds_horiz;
+    std::vector<int> bounds_vert;
+    std::vector<double> kk_horiz;
+    std::vector<double> kk_vert;
 
-    bool need_horizontal =
-        x_size != im_in.size().width || rect[0] || rect[2] != x_size;
-    bool need_vertical =
-        y_size != im_in.size().height || rect[1] || rect[3] != y_size;
+    bool need_horizontal = x_size != im_in.size().width || (rect[0] != 0.0F) ||
+                           static_cast<int>(rect[2]) != x_size;
+    bool need_vertical = y_size != im_in.size().height || (rect[1] != 0.0F) ||
+                         static_cast<int>(rect[3]) != y_size;
 
     // Compute horizontal filter coefficients.
     int ksize_horiz =
@@ -429,18 +463,18 @@ void PillowResize::_resampleHorizontal(cv::Mat& im_out,
         case CV_8U:
             return _resampleHorizontal<uchar>(
                 im_out, im_in, offset, ksize, bounds, prekk,
-                _normalizeCoeffs8bpc, (1 << (precision_bits - 1)), _clip8);
+                _normalizeCoeffs8bpc, (1U << (precision_bits - 1)), _clip8);
         case CV_8S:
             return _resampleHorizontal<char>(im_out, im_in, offset, ksize,
                                              bounds, prekk, nullptr, 0.,
                                              _roundUp<char>);
         case CV_16U:
-            return _resampleHorizontal<ushort>(im_out, im_in, offset, ksize,
-                                               bounds, prekk);
+            return _resampleHorizontal<std::uint16_t>(im_out, im_in, offset,
+                                                      ksize, bounds, prekk);
         case CV_16S:
-            return _resampleHorizontal<short>(im_out, im_in, offset, ksize,
-                                              bounds, prekk, nullptr, 0.,
-                                              _roundUp<short>);
+            return _resampleHorizontal<std::int16_t>(
+                im_out, im_in, offset, ksize, bounds, prekk, nullptr, 0.,
+                _roundUp<std::int16_t>);
         case CV_32S:
             return _resampleHorizontal<int>(im_out, im_in, offset, ksize,
                                             bounds, prekk, nullptr, 0.,
