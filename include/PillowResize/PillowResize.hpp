@@ -19,9 +19,7 @@
 
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <limits>
-#include <utility>
 #include <vector>
 
 #include <opencv2/opencv.hpp>
@@ -40,82 +38,88 @@ protected:
      * \brief precision_bits 8 bits for result. Filter can have negative areas.
      * In one case the sum of the coefficients will be negative,
      * in the other it will be more than 1.0. That is why we need
-     * two extra bits for overflow and int type.
+     * two extra bits for overflow and int type. 
      */
-    static constexpr int precision_bits = 32 - 8 - 2;
+    static constexpr unsigned int precision_bits = 32 - 8 - 2;
 
     /**
      * \brief Filter Abstract class to handle the filters used by
-     * the different interpolation methods.
+     * the different interpolation methods. 
      */
     class Filter {
-    protected:
+    private:
         double _support; /** Support size (length of resampling filter). */
 
     public:
         /**
          * \brief Construct a new Filter object.
-         *
+         * 
          * \param[in] support Support size (length of resampling filter).
          */
-        Filter(double support) : _support{support} {};
+        explicit Filter(double support) : _support{support} {};
 
         /**
          * \brief filter Apply filter.
-         *
+         * 
          * \param[in] x Input value.
-         *
-         * \return Processed value by the filter.
+         * 
+         * \return Processed value by the filter. 
          */
         [[nodiscard]] virtual double filter(double x) const = 0;
 
         /**
          * \brief support Get support size.
-         *
-         * \return support size.
+         * 
+         * \return support size. 
          */
         [[nodiscard]] double support() const { return _support; };
     };
 
+    static constexpr float box_filter_support = 0.5;
     class BoxFilter : public Filter {
     public:
-        BoxFilter() : Filter(0.5){};
+        BoxFilter() : Filter(box_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
+    static constexpr float bilinear_filter_support = 1.;
     class BilinearFilter : public Filter {
     public:
-        BilinearFilter() : Filter(1.){};
+        BilinearFilter() : Filter(bilinear_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
+    static constexpr float hamming_filter_support = 1.;
     class HammingFilter : public Filter {
     public:
-        HammingFilter() : Filter(1.){};
+        HammingFilter() : Filter(hamming_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
+    static constexpr float bicubic_filter_support = 2.;
     class BicubicFilter : public Filter {
     public:
-        BicubicFilter() : Filter(2.){};
+        BicubicFilter() : Filter(bicubic_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
+    static constexpr float lanczos_filter_support = 3.;
     class LanczosFilter : public Filter {
     protected:
         [[nodiscard]] static double _sincFilter(double x);
 
     public:
-        LanczosFilter() : Filter(3.){};
+        LanczosFilter() : Filter(lanczos_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
     /**
      * \brief _lut Generate lookup table.
-     * https://joelfilho.com/blog/2020/compile_time_lookup_tables_in_cpp/
+     * \reference https://joelfilho.com/blog/2020/compile_time_lookup_tables_in_cpp/
      * 
      * \tparam Length Number of table elements.  
      * \param[in] f Functor called to generate each elements in the table.
+     * 
      * \return An array of length Length with type deduced from Generator output.
      */
     template <size_t Length, typename Generator>
@@ -150,26 +154,27 @@ protected:
 
     /**
      * \brief _clip8 Optimized clip function.
-     *
+     * 
      * \param[in] in input value.
-     *
+     * 
      * \return Clipped value.
      */
     [[nodiscard]] static uchar _clip8(double in)
     {
         // Lookup table to speed up clip method.
         // Handles values from -640 to 639.
-        const uchar* clip8_lookups = &_clip8_lut<1280, -640>[640];
-        return clip8_lookups[static_cast<int>(in) >> precision_bits];
+        const uchar* clip8_lookups = &_clip8_lut<1280, -640>[640];    // NOLINT
+        // NOLINTNEXTLINE
+        return clip8_lookups[static_cast<unsigned int>(in) >> precision_bits];
     }
 
     /**
-     * \brief _roundUp Round function.
+     * \brief _roundUp Round function. 
      * The output value will be cast to type T.
-     *
+     *      
      * \param[in] f Input value.
-     *
-     * \return Rounded value.
+     * 
+     * \return Rounded value. 
      */
     template <typename T>
     [[nodiscard]] static T _roundUp(double f)
@@ -182,32 +187,32 @@ protected:
      * If the matrix has multiple channels, the function returns the
      * type of the element without the channels.
      * For instance, if the type is CV_16SC3 the function return CV_16S.
-     *
+     * 
      * \param[in] img Input image.
-     *
+     * 
      * \return Matrix element type.
      */
     [[nodiscard]] static int _getPixelType(const cv::Mat& img)
     {
-        return img.type() & CV_MAT_DEPTH_MASK;
+        return img.type() & CV_MAT_DEPTH_MASK;    // NOLINT
     }
 
     /**
      * \brief _precomputeCoeffs Compute 1D interpolation coefficients.
-     * If you have an image (or a 2D matrix), call the method twice to compute
+     * If you have an image (or a 2D matrix), call the method twice to compute 
      * the coefficients for row and column either.
      * The coefficients are computed for each element in range [0, out_size).
-     *
+     * 
      * \param[in] in_size Input size (e.g. image width or height).
      * \param[in] in0 Input starting index.
      * \param[in] in1 Input last index.
      * \param[in] out_size Output size.
      * \param[in] filterp Pointer to a Filter object.
      * \param[out] bounds Bounds vector. A bound is a pair of xmin and xmax.
-     * \param[out] kk Coefficients vector. To each elements corresponds a number of
+     * \param[out] kk Coefficients vector. To each elements corresponds a number of 
      * coefficients returned by the function.
-     *
-     * \return Size of the filter coefficients.
+     * 
+     * \return Size of the filter coefficients. 
      */
     [[nodiscard]] static int _precomputeCoeffs(
         int in_size,
@@ -220,9 +225,9 @@ protected:
 
     /**
      * \brief _normalizeCoeffs8bpc Normalize coefficients for 8 bit per pixel matrix.
-     *
+     * 
      * \param[in] prekk Filter coefficients.
-     *
+     * 
      * \return Filter coefficients normalized.
      */
     [[nodiscard]] static std::vector<double> _normalizeCoeffs8bpc(
@@ -230,15 +235,15 @@ protected:
 
     /**
      * \brief _resampleHorizontal Apply resample along the horizontal axis.
-     * It calls the _resampleHorizontal with the correct pixel type using
+     * It calls the _resampleHorizontal with the correct pixel type using 
      * the value returned by cv::Mat::type().
-     *
+     * 
      * \param[in, out] im_out Output resized matrix.
      *                        The matrix has to be previously initialized with right size.
      * \param[in] im_in Input matrix.
      * \param[in] offset Vertical offset (first used row in the source image).
      * \param[in] ksize Interpolation filter size.
-     * \param[in] bounds Interpolation filter bounds (value of the min and max column
+     * \param[in] bounds Interpolation filter bounds (value of the min and max column 
      *                   to be considered by the filter).
      * \param[in] prekk Interpolation filter coefficients.
      */
@@ -251,14 +256,14 @@ protected:
 
     /**
      * \brief _resampleVertical Apply resample along the vertical axis.
-     * It calls the _resampleVertical with the correct pixel type using
+     * It calls the _resampleVertical with the correct pixel type using 
      * the value returned by cv::Mat::type().
-     *
+     * 
      * \param[in, out] im_out Output resized matrix.
      *                        The matrix has to be previously initialized with right size.
      * \param[in] im_in Input matrix.
      * \param[in] ksize Interpolation filter size.
-     * \param[in] bounds Interpolation filter bounds (value of the min and max row
+     * \param[in] bounds Interpolation filter bounds (value of the min and max row 
      *                   to be considered by the filter).
      * \param[in] prekk Interpolation filter coefficients.
      */
@@ -268,26 +273,26 @@ protected:
                                   const std::vector<int>& bounds,
                                   const std::vector<double>& prekk);
 
-    typedef std::vector<double> (*preprocessCoefficientsFn)(
-        const std::vector<double>&);
+    using preprocessCoefficientsFn =
+        std::vector<double> (*)(const std::vector<double>&);
 
     template <typename T>
     using outMapFn = T (*)(double);
 
     /**
      * \brief _resampleHorizontal Apply resample along the horizontal axis.
-     *
+     *      
      * \param[in, out] im_out Output resized matrix.
      *                       The matrix has to be previously initialized with right size.
      * \param[in] im_in Input matrix.
      * \param[in] offset Vertical offset (first used row in the source image).
      * \param[in] ksize Interpolation filter size.
-     * \param[in] bounds Interpolation filter bounds (index of min and max pixel
+     * \param[in] bounds Interpolation filter bounds (index of min and max pixel 
      *                   to be considered by the filter).
      * \param[in] prekk Interpolation filter coefficients.
      * \param[in] preprocessCoefficients Function used to process the filter coefficients.
      * \param[in] init_buffer Initial value of pixel buffer (default: 0.0).
-     * \param[in] outMap Function used to convert the value of the pixel after
+     * \param[in] outMap Function used to convert the value of the pixel after 
      *                   the interpolation into the output pixel.
      */
     template <typename T>
@@ -304,14 +309,14 @@ protected:
 
     /**
      * \brief _resample Resize a matrix using the specified interpolation method.
-     *
+     * 
      * \param[in] im_in Input matrix.
      * \param[in] x_size Desidered output width.
      * \param[in] y_size Desidered output height.
      * \param[in] filter_p Pointer to the interpolation filter.
      * \param[in] rect Input region that has to be resized.
      *                 Region is defined as a vector of 4 point x0,y0,x1,y1.
-     *
+     * 
      * \return Resized matrix. The type of the matrix will be the same of im_in.
      */
     [[nodiscard]] static cv::Mat _resample(
@@ -323,14 +328,15 @@ protected:
 
     /**
      * \brief _nearestResample Resize a matrix using nearest neighbor interpolation.
-     *
+     * 
      * \param[in] im_in Input matrix.
      * \param[in] x_size Desidered output width.
      * \param[in] y_size Desidered output height.
      * \param[in] rect Input region that has to be resized.
      *                 Region is defined as a vector of 4 point x0,y0,x1,y1.
-     *
+     * 
      * \return Resized matrix. The type of the matrix will be the same of im_in.
+     * 
      * \throws std::runtime_error If the input matrix type is not supported.
      */
     [[nodiscard]] static cv::Mat _nearestResample(const cv::Mat& im_in,
@@ -341,47 +347,50 @@ protected:
 public:
     /**
      * \brief InterpolationMethods Interpolation methods.
-     * See https://pillow.readthedocs.io/en/stable/handbook/concepts.html#concept-filters.
+     *
+     * \see https://pillow.readthedocs.io/en/stable/handbook/concepts.html#concept-filters.
      */
     enum InterpolationMethods {
         INTERPOLATION_NEAREST = 0,
-        INTERPOLATION_BOX = 1,
+        INTERPOLATION_BOX = 4,
         INTERPOLATION_BILINEAR = 2,
-        INTERPOLATION_HAMMING = 3,
-        INTERPOLATION_BICUBIC = 4,
-        INTERPOLATION_LANCZOS = 5,
+        INTERPOLATION_HAMMING = 5,
+        INTERPOLATION_BICUBIC = 3,
+        INTERPOLATION_LANCZOS = 1,
     };
 
     /**
      * \brief resize Porting of Pillow resize method.
-     *
+     * 
      * \param[in] src Input matrix that has to be processed.
-     * \param[in] out_size Output matrix size.
+     * \param[in] out_size Output matrix size. 
      * \param[in] filter Interpolation method code, see InterpolationMethods.
      * \param[in] box Input roi. Only the elements inside the box will be resized.
-     *
-     * \return Resized matrix.
-     * \throw std::runtime_error In case the box is invalid, the interpolation filter
+     * 
+     * \return Resized matrix.  
+     * 
+     * \throw std::runtime_error In case the box is invalid, the interpolation filter 
      *        or the input matrix type are not supported.
      */
     [[nodiscard]] static cv::Mat resize(const cv::Mat& src,
-                                        cv::Size out_size,
+                                        const cv::Size& out_size,
                                         int filter,
                                         const cv::Rect2f& box);
 
     /**
      * \brief resize Porting of Pillow resize method.
-     *
+     * 
      * \param[in] src Input matrix that has to be processed.
      * \param[in] out_size Output matrix size.
      * \param[in] filter Interpolation method code, see interpolation enum.
-     *
+     * 
      * \return Resized matrix.
-     * \throw std::runtime_error In case the box is invalid, the interpolation filter
+     * 
+     * \throw std::runtime_error In case the box is invalid, the interpolation filter 
      *        or the input matrix type are not supported.
      */
     [[nodiscard]] static cv::Mat resize(const cv::Mat& src,
-                                        cv::Size out_size,
+                                        const cv::Size& out_size,
                                         int filter);
 };
 
@@ -411,8 +420,10 @@ void PillowResize::_resampleHorizontal(
             for (size_t c = 0; c < im_in.channels(); ++c) {
                 double ss = init_buffer;
                 for (size_t x = 0; x < xmax; ++x) {
+                    // NOLINTNEXTLINE
                     ss += im_in.ptr<T>(yy + offset, x + xmin)[c] * k[x];
                 }
+                // NOLINTNEXTLINE
                 im_out.ptr<T>(yy, xx)[c] =
                     (outMap == nullptr ? ss : outMap(ss));
             }
