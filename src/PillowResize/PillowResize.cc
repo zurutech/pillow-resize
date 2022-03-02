@@ -14,13 +14,13 @@
 * limitations under the License.
 */
 
-#include <cmath>
 #include <cstdint>
 #include <utility>
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
+#include <cmath>
 
 #include <PillowResize/PillowResize.hpp>
 

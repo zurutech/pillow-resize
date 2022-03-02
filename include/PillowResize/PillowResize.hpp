@@ -18,9 +18,13 @@
 #define PILLOWRESIZE_HPP
 
 #include <array>
-#include <cmath>
 #include <limits>
 #include <vector>
+
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
+#include <cmath>
 
 #include <opencv2/opencv.hpp>
 
