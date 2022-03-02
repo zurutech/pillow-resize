@@ -46,3 +46,7 @@ libs/docs/*
 .vscode
 
 *.sh
+
+# Visual Studio 
+.vs/*
+out/*

@@ -18,6 +18,10 @@
 #include <cstdint>
 #include <utility>
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
+
 #include <PillowResize/PillowResize.hpp>
 
 double PillowResize::BoxFilter::filter(double x) const

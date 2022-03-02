@@ -72,7 +72,7 @@ int main(int argc, char** argv)
                 value = std::stoi(s);
                 return true;
             }
-            catch (const std::exception& e) {
+            catch (const std::exception& /*unused*/) {
                 return false;
             }
         };
@@ -124,14 +124,15 @@ int main(int argc, char** argv)
         fs::create_directories(out_parent_path);
     }
 
-    cv::Mat input = cv::imread(image_path, cv::IMREAD_ANYCOLOR);
+    cv::Mat input = cv::imread(image_path.string(), cv::IMREAD_ANYCOLOR);
 
     cv::Size out_size;
     if (width != 0 && height != 0) {
         out_size = cv::Size(width, height);
     }
     else if (fx > 0 && fy > 0) {
-        out_size = cv::Size(input.size().width * fx, input.size().height * fy);
+        out_size = cv::Size(static_cast<int>(input.size().width * fx),
+                            static_cast<int>(input.size().height * fy));
     }
     else {
         std::cout << "You need to set the output size. \n"
@@ -141,7 +142,7 @@ int main(int argc, char** argv)
     }
     cv::Mat out = PillowResize::resize(input, out_size, interpolation);
 
-    cv::imwrite(out_path, out);
+    cv::imwrite(out_path.string(), out);
 
     return EXIT_SUCCESS;
 }
