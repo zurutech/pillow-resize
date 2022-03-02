@@ -463,7 +463,8 @@ void PillowResize::_resampleHorizontal(cv::Mat& im_out,
         case CV_8U:
             return _resampleHorizontal<uchar>(
                 im_out, im_in, offset, ksize, bounds, prekk,
-                _normalizeCoeffs8bpc, (1U << (precision_bits - 1)), _clip8);
+                _normalizeCoeffs8bpc,
+                static_cast<double>(1U << (precision_bits - 1U)), _clip8);
         case CV_8S:
             return _resampleHorizontal<char>(im_out, im_in, offset, ksize,
                                              bounds, prekk, nullptr, 0.,

@@ -421,11 +421,13 @@ void PillowResize::_resampleHorizontal(
                 double ss = init_buffer;
                 for (size_t x = 0; x < xmax; ++x) {
                     // NOLINTNEXTLINE
-                    ss += im_in.ptr<T>(yy + offset, x + xmin)[c] * k[x];
+                    ss += im_in.ptr<T>(static_cast<int>(yy) + offset,
+                                       static_cast<int>(x) + xmin)[c] *
+                          k[x];
                 }
                 // NOLINTNEXTLINE
-                im_out.ptr<T>(yy, xx)[c] =
-                    (outMap == nullptr ? ss : outMap(ss));
+                im_out.ptr<T>(static_cast<int>(yy), static_cast<int>(xx))[c] =
+                    (outMap == nullptr ? static_cast<T>(ss) : outMap(ss));
             }
         }
     }
