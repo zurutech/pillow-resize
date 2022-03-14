@@ -27,8 +27,8 @@ The only requirement is `OpenCV`, so install it from your package manager.
 ## Compilation
 
 ```bash
-git clone --recurse https://github.com/zurutech/PillowResize.git
-cd PillowResize
+git clone --recurse https://github.com/zurutech/pillow-resize.git
+cd pillow-resize
 git submodule update --init --recursive
 mkdir build && cd build
 cmake ..
