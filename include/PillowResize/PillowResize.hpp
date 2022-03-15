@@ -117,6 +117,7 @@ protected:
         [[nodiscard]] double filter(double x) const override;
     };
 
+#if __cplusplus >= 201703L
     /**
      * \brief _lut Generate lookup table.
      * \reference https://joelfilho.com/blog/2020/compile_time_lookup_tables_in_cpp/
@@ -155,6 +156,7 @@ protected:
             }
             return static_cast<uchar>(saturate_val);
         });
+#endif
 
     /**
      * \brief _clip8 Optimized clip function.
@@ -165,11 +167,22 @@ protected:
      */
     [[nodiscard]] static uchar _clip8(double in)
     {
+#if __cplusplus >= 201703L
         // Lookup table to speed up clip method.
         // Handles values from -640 to 639.
         const uchar* clip8_lookups = &_clip8_lut<1280, -640>[640];    // NOLINT
         // NOLINTNEXTLINE
         return clip8_lookups[static_cast<unsigned int>(in) >> precision_bits];
+#else
+        auto saturate_val = static_cast<intmax_t>(in) >> precision_bits;
+        if (saturate_val < 0) {
+            return 0;
+        }
+        if (saturate_val > UCHAR_MAX) {
+            return UCHAR_MAX;
+        }
+        return static_cast<uchar>(saturate_val);
+#endif
     }
 
     /**
