@@ -20,6 +20,7 @@
 #include <array>
 #include <limits>
 #include <vector>
+#include <memory>
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES

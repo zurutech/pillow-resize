@@ -433,7 +433,10 @@ cv::Mat PillowResize::_resample(const cv::Mat& im_in,
     // Vertical pass.
     if (need_vertical) {
         // Create destination image with desired ouput size and same input pixel type.
-        im_out.create(y_size, im_temp.size().width, im_in.type());
+
+        const auto new_w =
+            (im_temp.size().width != 0) ? im_temp.size().width : x_size;
+        im_out.create(y_size, new_w, im_in.type());
         if (!im_out.empty()) {
             if (im_temp.empty()) {
                 im_temp = im_in;
