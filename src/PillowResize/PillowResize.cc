@@ -16,7 +16,7 @@
 
 #include <cstdint>
 #include <utility>
-#include <memory>
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -434,9 +434,9 @@ cv::Mat PillowResize::_resample(const cv::Mat& im_in,
     if (need_vertical) {
         // Create destination image with desired ouput size and same input pixel type.
 
-        const auto now_w =
+        const auto new_w =
             (im_temp.size().width != 0) ? im_temp.size().width : x_size;
-        im_out.create(y_size, now_w, im_in.type());
+        im_out.create(y_size, new_w, im_in.type());
         if (!im_out.empty()) {
             if (im_temp.empty()) {
                 im_temp = im_in;
