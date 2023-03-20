@@ -18,9 +18,10 @@
 #define PILLOWRESIZE_HPP
 
 #include <array>
+#include <cstdint>
 #include <limits>
-#include <vector>
 #include <memory>
+#include <vector>
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -45,7 +46,13 @@ protected:
      * in the other it will be more than 1.0. That is why we need
      * two extra bits for overflow and int type. 
      */
-    static constexpr unsigned int precision_bits = 32 - 8 - 2;
+    static constexpr uint32_t precision_bits = 32 - 8 - 2;
+
+    static constexpr double box_filter_support = 0.5;
+    static constexpr double bilinear_filter_support = 1.;
+    static constexpr double hamming_filter_support = 1.;
+    static constexpr double bicubic_filter_support = 2.;
+    static constexpr double lanczos_filter_support = 3.;
 
     /**
      * \brief Filter Abstract class to handle the filters used by
@@ -80,35 +87,30 @@ protected:
         [[nodiscard]] double support() const { return _support; };
     };
 
-    static constexpr float box_filter_support = 0.5;
     class BoxFilter : public Filter {
     public:
         BoxFilter() : Filter(box_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
-    static constexpr float bilinear_filter_support = 1.;
     class BilinearFilter : public Filter {
     public:
         BilinearFilter() : Filter(bilinear_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
-    static constexpr float hamming_filter_support = 1.;
     class HammingFilter : public Filter {
     public:
         HammingFilter() : Filter(hamming_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
-    static constexpr float bicubic_filter_support = 2.;
     class BicubicFilter : public Filter {
     public:
         BicubicFilter() : Filter(bicubic_filter_support){};
         [[nodiscard]] double filter(double x) const override;
     };
 
-    static constexpr float lanczos_filter_support = 3.;
     class LanczosFilter : public Filter {
     protected:
         [[nodiscard]] static double _sincFilter(double x);
@@ -147,15 +149,15 @@ protected:
      */
     template <size_t Length, intmax_t min_val>
     static inline constexpr auto _clip8_lut =
-        _lut<Length>([](size_t n) -> uchar {
+        _lut<Length>([](size_t n) -> uint8_t {
             intmax_t saturate_val = static_cast<intmax_t>(n) + min_val;
             if (saturate_val < 0) {
                 return 0;
             }
-            if (saturate_val > UCHAR_MAX) {
-                return UCHAR_MAX;
+            if (saturate_val > UINT8_MAX) {
+                return UINT8_MAX;
             }
-            return static_cast<uchar>(saturate_val);
+            return static_cast<uint8_t>(saturate_val);
         });
 #endif
 
@@ -166,23 +168,24 @@ protected:
      * 
      * \return Clipped value.
      */
-    [[nodiscard]] static uchar _clip8(double in)
+    [[nodiscard]] static uint8_t _clip8(double in)
     {
 #if __cplusplus >= 201703L
         // Lookup table to speed up clip method.
         // Handles values from -640 to 639.
-        const uchar* clip8_lookups = &_clip8_lut<1280, -640>[640];    // NOLINT
+        const uint8_t* clip8_lookups =
+            &_clip8_lut<1280, -640>[640];    // NOLINT
         // NOLINTNEXTLINE
-        return clip8_lookups[static_cast<unsigned int>(in) >> precision_bits];
+        return clip8_lookups[static_cast<intmax_t>(in) >> precision_bits];
 #else
         auto saturate_val = static_cast<intmax_t>(in) >> precision_bits;
         if (saturate_val < 0) {
             return 0;
         }
-        if (saturate_val > UCHAR_MAX) {
-            return UCHAR_MAX;
+        if (saturate_val > UINT8_MAX) {
+            return UINT8_MAX;
         }
-        return static_cast<uchar>(saturate_val);
+        return static_cast<uint8_t>(saturate_val);
 #endif
     }
 
@@ -210,7 +213,7 @@ protected:
      * 
      * \return Matrix element type.
      */
-    [[nodiscard]] static int _getPixelType(const cv::Mat& img)
+    [[nodiscard]] static int32_t _getPixelType(const cv::Mat& img)
     {
         return img.type() & CV_MAT_DEPTH_MASK;    // NOLINT
     }
@@ -232,13 +235,13 @@ protected:
      * 
      * \return Size of the filter coefficients. 
      */
-    [[nodiscard]] static int _precomputeCoeffs(
-        int in_size,
+    [[nodiscard]] static int32_t _precomputeCoeffs(
+        int32_t in_size,
         double in0,
         double in1,
-        int out_size,
+        int32_t out_size,
         const std::shared_ptr<Filter>& filterp,
-        std::vector<int>& bounds,
+        std::vector<int32_t>& bounds,
         std::vector<double>& kk);
 
     /**
@@ -267,9 +270,9 @@ protected:
      */
     static void _resampleHorizontal(cv::Mat& im_out,
                                     const cv::Mat& im_in,
-                                    int offset,
-                                    int ksize,
-                                    const std::vector<int>& bounds,
+                                    int32_t offset,
+                                    int32_t ksize,
+                                    const std::vector<int32_t>& bounds,
                                     const std::vector<double>& prekk);
 
     /**
@@ -287,8 +290,8 @@ protected:
      */
     static void _resampleVertical(cv::Mat& im_out,
                                   const cv::Mat& im_in,
-                                  int ksize,
-                                  const std::vector<int>& bounds,
+                                  int32_t ksize,
+                                  const std::vector<int32_t>& bounds,
                                   const std::vector<double>& prekk);
 
     using preprocessCoefficientsFn =
@@ -317,9 +320,9 @@ protected:
     static void _resampleHorizontal(
         cv::Mat& im_out,
         const cv::Mat& im_in,
-        int offset,
-        int ksize,
-        const std::vector<int>& bounds,
+        int32_t offset,
+        int32_t ksize,
+        const std::vector<int32_t>& bounds,
         const std::vector<double>& prekk,
         preprocessCoefficientsFn preprocessCoefficients = nullptr,
         double init_buffer = 0.,
@@ -339,8 +342,8 @@ protected:
      */
     [[nodiscard]] static cv::Mat _resample(
         const cv::Mat& im_in,
-        int x_size,
-        int y_size,
+        int32_t x_size,
+        int32_t y_size,
         const std::shared_ptr<Filter>& filter_p,
         const cv::Vec4f& rect);
 
@@ -358,8 +361,8 @@ protected:
      * \throws std::runtime_error If the input matrix type is not supported.
      */
     [[nodiscard]] static cv::Mat _nearestResample(const cv::Mat& im_in,
-                                                  int x_size,
-                                                  int y_size,
+                                                  int32_t x_size,
+                                                  int32_t y_size,
                                                   const cv::Vec4f& rect);
 
 public:
@@ -392,7 +395,7 @@ public:
      */
     [[nodiscard]] static cv::Mat resize(const cv::Mat& src,
                                         const cv::Size& out_size,
-                                        int filter,
+                                        int32_t filter,
                                         const cv::Rect2f& box);
 
     /**
@@ -409,16 +412,16 @@ public:
      */
     [[nodiscard]] static cv::Mat resize(const cv::Mat& src,
                                         const cv::Size& out_size,
-                                        int filter);
+                                        int32_t filter);
 };
 
 template <typename T>
 void PillowResize::_resampleHorizontal(
     cv::Mat& im_out,
     const cv::Mat& im_in,
-    int offset,
-    int ksize,
-    const std::vector<int>& bounds,
+    int32_t offset,
+    int32_t ksize,
+    const std::vector<int32_t>& bounds,
     const std::vector<double>& prekk,
     preprocessCoefficientsFn preprocessCoefficients,
     double init_buffer,
@@ -430,21 +433,21 @@ void PillowResize::_resampleHorizontal(
         kk = preprocessCoefficients(kk);
     }
 
-    for (size_t yy = 0; yy < im_out.size().height; ++yy) {
-        for (size_t xx = 0; xx < im_out.size().width; ++xx) {
-            int xmin = bounds[xx * 2 + 0];
-            int xmax = bounds[xx * 2 + 1];
-            double* k = &kk[xx * ksize];
-            for (size_t c = 0; c < im_in.channels(); ++c) {
+    for (int32_t yy = 0; yy < im_out.size().height; ++yy) {
+        for (int32_t xx = 0; xx < im_out.size().width; ++xx) {
+            const int32_t xmin = bounds[xx * 2 + 0];
+            const int32_t xmax = bounds[xx * 2 + 1];
+            const double* k = &kk[xx * ksize];
+            for (int32_t c = 0; c < im_in.channels(); ++c) {
                 double ss = init_buffer;
-                for (size_t x = 0; x < xmax; ++x) {
+                for (int32_t x = 0; x < xmax; ++x) {
                     // NOLINTNEXTLINE
-                    ss += im_in.ptr<T>(static_cast<int>(yy) + offset,
-                                       static_cast<int>(x) + xmin)[c] *
+                    ss += static_cast<double>(
+                              im_in.ptr<T>(yy + offset, x + xmin)[c]) *
                           k[x];
                 }
                 // NOLINTNEXTLINE
-                im_out.ptr<T>(static_cast<int>(yy), static_cast<int>(xx))[c] =
+                im_out.ptr<T>(yy, xx)[c] =
                     (outMap == nullptr ? static_cast<T>(ss) : outMap(ss));
             }
         }

@@ -14,7 +14,6 @@
 * limitations under the License.
 */
 
-#include <cstdint>
 #include <utility>
 
 #ifdef _WIN32
@@ -26,7 +25,7 @@
 
 double PillowResize::BoxFilter::filter(double x) const
 {
-    const double half_pixel = 0.5;
+    constexpr double half_pixel = 0.5;
     if (x > -half_pixel && x <= half_pixel) {
         return 1.0;
     }
@@ -56,13 +55,13 @@ double PillowResize::HammingFilter::filter(double x) const
         return 0.0;
     }
     x = x * M_PI;
-    return sin(x) / x * (0.54F + 0.46F * cos(x));    // NOLINT
+    return sin(x) / x * (0.54 + 0.46 * cos(x));    // NOLINT
 }
 
 double PillowResize::BicubicFilter::filter(double x) const
 {
     // https://en.wikipedia.org/wiki/Bicubic_interpolation#Bicubic_convolution_algorithm
-    const double a = -0.5;
+    constexpr double a = -0.5;
     if (x < 0.0) {
         x = -x;
     }
@@ -91,37 +90,37 @@ double PillowResize::LanczosFilter::filter(double x) const
     // "keeps low frequencies and rejects high frequencies better
     // than any (achievable) filter we've seen so far."[3]
     // (https://en.wikipedia.org/wiki/Lanczos_resampling#Advantages)
-    const double lanczos_a_param = 3.0;
+    constexpr double lanczos_a_param = 3.0;
     if (-lanczos_a_param <= x && x < lanczos_a_param) {
         return _sincFilter(x) * _sincFilter(x / lanczos_a_param);
     }
     return 0.0;
 }
 
-int PillowResize::_precomputeCoeffs(int in_size,
-                                    double in0,
-                                    double in1,
-                                    int out_size,
-                                    const std::shared_ptr<Filter>& filterp,
-                                    std::vector<int>& bounds,
-                                    std::vector<double>& kk)
+int32_t PillowResize::_precomputeCoeffs(int32_t in_size,
+                                        double in0,
+                                        double in1,
+                                        int32_t out_size,
+                                        const std::shared_ptr<Filter>& filterp,
+                                        std::vector<int32_t>& bounds,
+                                        std::vector<double>& kk)
 {
     // Prepare for horizontal stretch.
-    double scale = 0;
-    double filterscale = 0;
-    filterscale = scale = static_cast<double>(in1 - in0) / out_size;
+    const double scale = (in1 - in0) / static_cast<double>(out_size);
+    double filterscale = scale;
     if (filterscale < 1.0) {
         filterscale = 1.0;
     }
 
     // Determine support size (length of resampling filter).
-    double support = filterp->support() * filterscale;
+    const double support = filterp->support() * filterscale;
 
     // Maximum number of coeffs.
-    int k_size = static_cast<int>(ceil(support)) * 2 + 1;
+    const auto k_size = static_cast<int32_t>(ceil(support)) * 2 + 1;
 
     // Check for overflow
-    if (out_size > INT_MAX / (k_size * static_cast<int>(sizeof(double)))) {
+    if (out_size >
+        INT32_MAX / (k_size * static_cast<int32_t>(sizeof(double)))) {
         throw std::runtime_error("Memory error");
     }
 
@@ -131,25 +130,19 @@ int PillowResize::_precomputeCoeffs(int in_size,
     // Bounds vector.
     bounds.resize(out_size * 2);
 
-    int x = 0;
-    int xmin = 0;
-    int xmax = 0;
-    double center = 0;
-    double ww = 0;
-    double ss = 0;
-
-    const double half_pixel = 0.5;
-    for (int xx = 0; xx < out_size; ++xx) {
-        center = in0 + (xx + half_pixel) * scale;
-        ww = 0.0;
-        ss = 1.0 / filterscale;
+    int32_t x = 0;
+    constexpr double half_pixel = 0.5;
+    for (int32_t xx = 0; xx < out_size; ++xx) {
+        double center = in0 + (xx + half_pixel) * scale;
+        double ww = 0.0;
+        double ss = 1.0 / filterscale;
         // Round the value.
-        xmin = static_cast<int>(center - support + half_pixel);
+        auto xmin = static_cast<int32_t>(center - support + half_pixel);
         if (xmin < 0) {
             xmin = 0;
         }
         // Round the value.
-        xmax = static_cast<int>(center + support + half_pixel);
+        auto xmax = static_cast<int32_t>(center + support + half_pixel);
         if (xmax > in_size) {
             xmax = in_size;
         }
@@ -181,15 +174,15 @@ std::vector<double> PillowResize::_normalizeCoeffs8bpc(
     std::vector<double> kk;
     kk.reserve(prekk.size());
 
-    const double half_pixel = 0.5;
+    constexpr auto shifted_coeff = static_cast<double>(1U << precision_bits);
+
+    constexpr double half_pixel = 0.5;
     for (const auto& k : prekk) {
         if (k < 0) {
-            kk.emplace_back(
-                static_cast<int>(-half_pixel + k * (1U << precision_bits)));
+            kk.emplace_back(trunc(-half_pixel + k * shifted_coeff));
         }
         else {
-            kk.emplace_back(
-                static_cast<int>(half_pixel + k * (1U << precision_bits)));
+            kk.emplace_back(trunc(half_pixel + k * shifted_coeff));
         }
     }
     return kk;
@@ -197,7 +190,7 @@ std::vector<double> PillowResize::_normalizeCoeffs8bpc(
 
 cv::Mat PillowResize::resize(const cv::Mat& src,
                              const cv::Size& out_size,
-                             int filter)
+                             int32_t filter)
 {
     cv::Rect2f box(0.F, 0.F, static_cast<float>(src.size().width),
                    static_cast<float>(src.size().height));
@@ -206,15 +199,15 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
 
 cv::Mat PillowResize::resize(const cv::Mat& src,
                              const cv::Size& out_size,
-                             int filter,
+                             int32_t filter,
                              const cv::Rect2f& box)
 {
     // Box = x0,y0,w,h
     // Rect = x0,y0,x1,y1
-    cv::Vec4f rect(box.x, box.y, box.x + box.width, box.y + box.height);
+    const cv::Vec4f rect(box.x, box.y, box.x + box.width, box.y + box.height);
 
-    int x_size = out_size.width;
-    int y_size = out_size.height;
+    const int32_t x_size = out_size.width;
+    const int32_t y_size = out_size.height;
     if (x_size < 1 || y_size < 1) {
         throw std::runtime_error("Height and width must be > 0");
     }
@@ -223,8 +216,8 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
         throw std::runtime_error("Box offset can't be negative");
     }
 
-    if (static_cast<int>(rect[2]) > src.size().width ||
-        static_cast<int>(rect[3]) > src.size().height) {
+    if (static_cast<int32_t>(rect[2]) > src.size().width ||
+        static_cast<int32_t>(rect[3]) > src.size().height) {
         throw std::runtime_error("Box can't exceed original image size");
     }
 
@@ -233,8 +226,8 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
     }
 
     // If box's coordinates are int and box size matches requested size
-    if (static_cast<int>(box.width) == x_size &&
-        static_cast<int>(box.height) == y_size) {
+    if (static_cast<int32_t>(box.width) == x_size &&
+        static_cast<int32_t>(box.height) == y_size) {
         cv::Rect roi = box;
         return cv::Mat(src, roi);
     }
@@ -268,14 +261,14 @@ cv::Mat PillowResize::resize(const cv::Mat& src,
 }
 
 cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
-                                       int x_size,
-                                       int y_size,
+                                       int32_t x_size,
+                                       int32_t y_size,
                                        const cv::Vec4f& rect)
 {
-    auto x0 = static_cast<int>(rect[0]);
-    auto y0 = static_cast<int>(rect[1]);
-    auto x1 = static_cast<int>(rect[2]);
-    auto y1 = static_cast<int>(rect[3]);
+    auto x0 = static_cast<int32_t>(rect[0]);
+    auto y0 = static_cast<int32_t>(rect[1]);
+    auto x1 = static_cast<int32_t>(rect[2]);
+    auto y1 = static_cast<int32_t>(rect[3]);
     x0 = std::max(x0, 0);
     y0 = std::max(y0, 0);
     x1 = std::min(x1, im_in.size().width);
@@ -301,11 +294,11 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
     auto affineTransform = [](const cv::Point& p,
                               const cv::Matx23d& a) -> cv::Point2d {
         const double half_pixel = 0.5;
-        double xin = p.x + half_pixel;
-        double yin = p.y + half_pixel;
+        const double xin = p.x + half_pixel;
+        const double yin = p.y + half_pixel;
 
-        double xout = a(0, 0) * xin + a(0, 1) * yin + a(0, 2);
-        double yout = a(1, 0) * xin + a(1, 1) * yin + a(1, 2);
+        const double xout = a(0, 0) * xin + a(0, 1) * yin + a(0, 2);
+        const double yout = a(1, 0) * xin + a(1, 1) * yin + a(1, 2);
 
         return cv::Point2d(xout, yout);
     };
@@ -326,8 +319,8 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
         [](const cv::Mat& im_in, cv::Mat& im_out, const cv::Point2d& p_in,
            const cv::Point& p_out, size_t pixel_size) -> void {
         // Round input coordinates.
-        int x = p_in.x < 0 ? -1 : static_cast<int>(p_in.x);
-        int y = p_in.y < 0 ? -1 : static_cast<int>(p_in.y);
+        const int32_t x = p_in.x < 0 ? -1 : static_cast<int32_t>(p_in.x);
+        const int32_t y = p_in.y < 0 ? -1 : static_cast<int32_t>(p_in.y);
         if (x < 0 || x >= im_in.size().width || y < 0 ||
             y >= im_in.size().height) {
             return;
@@ -341,19 +334,19 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
     size_t pixel_size = 0;
     switch (_getPixelType(im_in)) {
         case CV_8U:
-            pixel_size = sizeof(uchar);
+            pixel_size = sizeof(uint8_t);
             break;
         case CV_8S:
-            pixel_size = sizeof(char);
+            pixel_size = sizeof(int8_t);
             break;
         case CV_16U:
-            pixel_size = sizeof(std::uint16_t);
+            pixel_size = sizeof(uint16_t);
             break;
         case CV_16S:
-            pixel_size = sizeof(std::int16_t);
+            pixel_size = sizeof(int16_t);
             break;
         case CV_32S:
-            pixel_size = sizeof(int);
+            pixel_size = sizeof(int32_t);
             break;
         case CV_32F:
             pixel_size = sizeof(float);
@@ -365,13 +358,13 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
 
     for (size_t y = 0; y < im_out.size().height; ++y) {
         for (size_t x = 0; x < im_out.size().width; ++x) {
-            cv::Point out_p(static_cast<int>(x), static_cast<int>(y));
+            cv::Point out_p(static_cast<int32_t>(x), static_cast<int32_t>(y));
             // Compute input pixel position (corresponding nearest pixel).
             cv::Point2d p = affineTransform(out_p, m);
             // Copy input pixel into output.
             nearestInterpolation(im_in, im_out,
-                                 cv::Point(static_cast<int>(p.x) - x0,
-                                           static_cast<int>(p.y) - y0),
+                                 cv::Point(static_cast<int32_t>(p.x) - x0,
+                                           static_cast<int32_t>(p.y) - y0),
                                  out_p, pixel_size);
         }
     }
@@ -379,42 +372,46 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
 }
 
 cv::Mat PillowResize::_resample(const cv::Mat& im_in,
-                                int x_size,
-                                int y_size,
+                                int32_t x_size,
+                                int32_t y_size,
                                 const std::shared_ptr<Filter>& filter_p,
                                 const cv::Vec4f& rect)
 {
     cv::Mat im_out;
     cv::Mat im_temp;
 
-    std::vector<int> bounds_horiz;
-    std::vector<int> bounds_vert;
+    std::vector<int32_t> bounds_horiz;
+    std::vector<int32_t> bounds_vert;
     std::vector<double> kk_horiz;
     std::vector<double> kk_vert;
 
-    bool need_horizontal = x_size != im_in.size().width || (rect[0] != 0.0F) ||
-                           static_cast<int>(rect[2]) != x_size;
-    bool need_vertical = y_size != im_in.size().height || (rect[1] != 0.0F) ||
-                         static_cast<int>(rect[3]) != y_size;
+    const bool need_horizontal = x_size != im_in.size().width ||
+                                 (rect[0] != 0.0F) ||
+                                 static_cast<int32_t>(rect[2]) != x_size;
+    const bool need_vertical = y_size != im_in.size().height ||
+                               (rect[1] != 0.0F) ||
+                               static_cast<int32_t>(rect[3]) != y_size;
 
     // Compute horizontal filter coefficients.
-    int ksize_horiz =
+    const int32_t ksize_horiz =
         _precomputeCoeffs(im_in.size().width, rect[0], rect[2], x_size,
                           filter_p, bounds_horiz, kk_horiz);
 
     // Compute vertical filter coefficients.
-    int ksize_vert = _precomputeCoeffs(im_in.size().height, rect[1], rect[3],
-                                       y_size, filter_p, bounds_vert, kk_vert);
+    const int32_t ksize_vert =
+        _precomputeCoeffs(im_in.size().height, rect[1], rect[3], y_size,
+                          filter_p, bounds_vert, kk_vert);
 
     // First used row in the source image.
-    int ybox_first = bounds_vert[0];
+    const int32_t ybox_first = bounds_vert[0];
     // Last used row in the source image.
-    int ybox_last = bounds_vert[y_size * 2 - 2] + bounds_vert[y_size * 2 - 1];
+    const int32_t ybox_last =
+        bounds_vert[y_size * 2 - 2] + bounds_vert[y_size * 2 - 1];
 
     // Two-pass resize, horizontal pass.
     if (need_horizontal) {
         // Shift bounds for vertical pass.
-        for (int i = 0; i < y_size; ++i) {
+        for (int32_t i = 0; i < y_size; ++i) {
             bounds_vert[i * 2] -= ybox_first;
         }
 
@@ -460,33 +457,33 @@ cv::Mat PillowResize::_resample(const cv::Mat& im_in,
 
 void PillowResize::_resampleHorizontal(cv::Mat& im_out,
                                        const cv::Mat& im_in,
-                                       int offset,
-                                       int ksize,
-                                       const std::vector<int>& bounds,
+                                       int32_t offset,
+                                       int32_t ksize,
+                                       const std::vector<int32_t>& bounds,
                                        const std::vector<double>& prekk)
 {
     // Check pixel type.
     switch (_getPixelType(im_in)) {
         case CV_8U:
-            return _resampleHorizontal<uchar>(
+            return _resampleHorizontal<uint8_t>(
                 im_out, im_in, offset, ksize, bounds, prekk,
                 _normalizeCoeffs8bpc,
                 static_cast<double>(1U << (precision_bits - 1U)), _clip8);
         case CV_8S:
-            return _resampleHorizontal<char>(im_out, im_in, offset, ksize,
-                                             bounds, prekk, nullptr, 0.,
-                                             _roundUp<char>);
+            return _resampleHorizontal<int8_t>(im_out, im_in, offset, ksize,
+                                               bounds, prekk, nullptr, 0.,
+                                               _roundUp<int8_t>);
         case CV_16U:
-            return _resampleHorizontal<std::uint16_t>(im_out, im_in, offset,
-                                                      ksize, bounds, prekk);
+            return _resampleHorizontal<uint16_t>(im_out, im_in, offset, ksize,
+                                                 bounds, prekk);
         case CV_16S:
-            return _resampleHorizontal<std::int16_t>(
-                im_out, im_in, offset, ksize, bounds, prekk, nullptr, 0.,
-                _roundUp<std::int16_t>);
+            return _resampleHorizontal<int16_t>(im_out, im_in, offset, ksize,
+                                                bounds, prekk, nullptr, 0.,
+                                                _roundUp<int16_t>);
         case CV_32S:
-            return _resampleHorizontal<int>(im_out, im_in, offset, ksize,
-                                            bounds, prekk, nullptr, 0.,
-                                            _roundUp<int>);
+            return _resampleHorizontal<int32_t>(im_out, im_in, offset, ksize,
+                                                bounds, prekk, nullptr, 0.,
+                                                _roundUp<int32_t>);
         case CV_32F:
             return _resampleHorizontal<float>(im_out, im_in, offset, ksize,
                                               bounds, prekk);
@@ -497,8 +494,8 @@ void PillowResize::_resampleHorizontal(cv::Mat& im_out,
 
 void PillowResize::_resampleVertical(cv::Mat& im_out,
                                      const cv::Mat& im_in,
-                                     int ksize,
-                                     const std::vector<int>& bounds,
+                                     int32_t ksize,
+                                     const std::vector<int32_t>& bounds,
                                      const std::vector<double>& prekk)
 {
     im_out = im_out.t();
