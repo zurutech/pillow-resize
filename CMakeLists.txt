@@ -75,6 +75,14 @@ set(PILLOWRESIZE_LIBS PillowResize)
 #
 add_subdirectory(bin)
 
+# Testing
+option(BUILD_TESTS "Build the tests" OFF)
+if(BUILD_TESTS)
+  message(STATUS "Building Tests")
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
 #
 # Installation support
 #
