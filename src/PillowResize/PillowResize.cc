@@ -265,69 +265,25 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
                                        int32_t y_size,
                                        const cv::Vec4f& rect)
 {
-    auto x0 = static_cast<int32_t>(rect[0]);
-    auto y0 = static_cast<int32_t>(rect[1]);
-    auto x1 = static_cast<int32_t>(rect[2]);
-    auto y1 = static_cast<int32_t>(rect[3]);
-    x0 = std::max(x0, 0);
-    y0 = std::max(y0, 0);
-    x1 = std::min(x1, im_in.size().width);
-    y1 = std::min(y1, im_in.size().height);
+    auto rx0 = static_cast<int32_t>(rect[0]);
+    auto ry0 = static_cast<int32_t>(rect[1]);
+    auto rx1 = static_cast<int32_t>(rect[2]);
+    auto ry1 = static_cast<int32_t>(rect[3]);
+    rx0 = std::max(rx0, 0);
+    ry0 = std::max(ry0, 0);
+    rx1 = std::min(rx1, im_in.size().width);
+    ry1 = std::min(ry1, im_in.size().height);
 
     // Affine tranform matrix.
-    cv::Mat m = cv::Mat::eye(2, 3, CV_64F);
-    m.at<double>(0, 0) = (x1 - x0) / static_cast<double>(x_size);
-    m.at<double>(0, 2) = x0;
-    m.at<double>(1, 1) = (y1 - y0) / static_cast<double>(y_size);
-    m.at<double>(1, 2) = y0;
+    cv::Mat m = cv::Mat::zeros(2, 3, CV_64F);
+    m.at<double>(0, 0) =
+        static_cast<double>(rx1 - rx0) / static_cast<double>(x_size);
+    m.at<double>(0, 2) = static_cast<double>(rx0);
+    m.at<double>(1, 1) =
+        static_cast<double>(ry1 - ry0) / static_cast<double>(y_size);
+    m.at<double>(1, 2) = static_cast<double>(ry0);
 
     cv::Mat im_out = cv::Mat::zeros(y_size, x_size, im_in.type());
-
-    /**
-     * \brief affineTransform Transform a point according to the given transformation.
-     * 
-     * \param[in] p Point that has to be transformed.
-     * \param[in] a 2×3 transformation matrix.
-     * 
-     * \return Transformed point.
-     */
-    auto affineTransform = [](const cv::Point& p,
-                              const cv::Matx23d& a) -> cv::Point2d {
-        const double half_pixel = 0.5;
-        const double xin = p.x + half_pixel;
-        const double yin = p.y + half_pixel;
-
-        const double xout = a(0, 0) * xin + a(0, 1) * yin + a(0, 2);
-        const double yout = a(1, 0) * xin + a(1, 1) * yin + a(1, 2);
-
-        return cv::Point2d(xout, yout);
-    };
-
-    /**
-     * \brief Apply nearest interpolation.
-     * Copy a input pixel into the given output matrix position.
-     * The copy is performed copying a continuous number of bytes (pixel_size)
-     * from input matrix to output matrix.
-     * 
-     * \param[in] im_in Input matrix.
-     * \param[out] im_out Output matrix.
-     * \param[in] p_in Input point coordinates.
-     * \param[in] p_out Output point coordinates.
-     * \param[in] pixel_size Size of the pixel in bytes. 
-     */
-    auto nearestInterpolation =
-        [](const cv::Mat& im_in, cv::Mat& im_out, const cv::Point2d& p_in,
-           const cv::Point& p_out, size_t pixel_size) -> void {
-        // Round input coordinates.
-        const int32_t x = p_in.x < 0 ? -1 : static_cast<int32_t>(p_in.x);
-        const int32_t y = p_in.y < 0 ? -1 : static_cast<int32_t>(p_in.y);
-        if (x < 0 || x >= im_in.size().width || y < 0 ||
-            y >= im_in.size().height) {
-            return;
-        }
-        // Copy the input pixel into the output matrix.
-        memcpy(im_out.ptr(p_out.y, p_out.x), im_in.ptr(y, x), pixel_size);
-    };
 
     // Check pixel type and determine the pixel size
     // (element size * number of channels).
@@ -356,18 +312,46 @@ cv::Mat PillowResize::_nearestResample(const cv::Mat& im_in,
     }
     pixel_size *= im_in.channels();
 
-    for (size_t y = 0; y < im_out.size().height; ++y) {
-        for (size_t x = 0; x < im_out.size().width; ++x) {
-            cv::Point out_p(static_cast<int32_t>(x), static_cast<int32_t>(y));
-            // Compute input pixel position (corresponding nearest pixel).
-            cv::Point2d p = affineTransform(out_p, m);
-            // Copy input pixel into output.
-            nearestInterpolation(im_in, im_out,
-                                 cv::Point(static_cast<int32_t>(p.x) - x0,
-                                           static_cast<int32_t>(p.y) - y0),
-                                 out_p, pixel_size);
+    const int32_t x0 = 0;
+    const int32_t y0 = 0;
+    const int32_t x1 = x_size;
+    const int32_t y1 = y_size;
+
+    double xo = m.at<double>(0, 2) + m.at<double>(0, 0) * 0.5;
+    double yo = m.at<double>(1, 2) + m.at<double>(1, 1) * 0.5;
+
+    auto coord = [](double x) -> int32_t {
+        return x < 0. ? -1 : static_cast<int32_t>(x);
+    };
+
+    std::vector<int> xintab;
+    xintab.resize(im_out.size().width);
+
+    /* Pretabulate horizontal pixel positions */
+    int32_t xmin = x1;
+    int32_t xmax = x0;
+    for (int32_t x = x0; x < x1; ++x) {
+        int32_t xin = coord(xo);
+        if (xin >= 0 && xin < im_in.size().width) {
+            xmax = x + 1;
+            if (x < xmin) {
+                xmin = x;
+            }
+            xintab[x] = xin;
         }
+        xo += m.at<double>(0, 0);
     }
+
+    for (int32_t y = y0; y < y1; ++y) {
+        int32_t yi = coord(yo);
+        if (yi >= 0 && yi < im_in.size().height) {
+            for (int32_t x = xmin; x < xmax; ++x) {
+                memcpy(im_out.ptr(y, x), im_in.ptr(yi, xintab[x]), pixel_size);
+            }
+        }
+        yo += m.at<double>(1, 1);
+    }
+
     return im_out;
 }
 
