@@ -35,6 +35,17 @@ cmake ..
 make
 ```
 
+### Test
+If you want to run also the tests, you need to install also [`gtest`](https://github.com/google/googletest).
+
+```bash
+cmake -DBUILD_TESTS=ON ..
+make
+make test
+```
+
+The tests are based on a pixelwise comparison between the images resized using Pillow from Python and the images created with this library.
+
 ## Installation
 
 To install `PillowResize` as a package ensure that you have `OpenCV` installed system-wide, then simply compile and install.
