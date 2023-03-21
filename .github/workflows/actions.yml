@@ -17,14 +17,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        lfs: 'true'
+        submodules: 'recursive'
 
     - name: Install packages
       run: |
         sudo apt-get update
         sudo apt-get -y install libgtest-dev libopencv-dev
-
-    - name: Submodules
-      run: git submodule update --init --recursive
     
     - name: configure
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DBUILD_TESTS=${{env.BUILD_TESTS}}
