@@ -25,8 +25,8 @@ jobs:
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DBUILD_TESTS=${{env.BUILD_TESTS}}
       
     - name: make
-      run: make
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
       
     - name: test
       working-directory: ${{github.workspace}}/build
-      run: make test          
+      run: ctest -C ${{env.BUILD_TYPE}}      
