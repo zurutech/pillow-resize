@@ -4,9 +4,13 @@
  */
 
 #include <filesystem>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
+
+#include <magic_enum.hpp>
 
 #include <opencv2/opencv.hpp>
 
@@ -16,24 +20,31 @@ namespace {
 
 namespace fs = std::filesystem;
 
-class ResizeTest : public testing::TestWithParam<std::tuple<fs::path, int>> {
+class ResizeTest : public testing::TestWithParam<std::tuple<cv::Size, int>> {
 protected:
-    fs::path base_path{"tests/assets"};
+    fs::path base_path{"assets"};
+
+    static constexpr auto interpolation_names =
+        magic_enum::enum_names<PillowResize::InterpolationMethods>();
 };
 
 TEST_P(ResizeTest, TestEqualColor)
 {
-    auto [img_path, interpolation_method] = GetParam();
+    auto [size, interpolation_method] = GetParam();
 
-    cv::Mat input =
-        cv::imread((base_path / "glare.png").string(), cv::IMREAD_COLOR);
+    cv::Mat input = cv::imread(base_path / "test.png", cv::IMREAD_COLOR);
 
-    // This image has been obtained using Pillow from python.
-    // In particular, the image is loaded and saved using OpenCV but the resize
+    const auto interpolation_name = interpolation_names[interpolation_method];
+    std::ostringstream oss;
+    oss << interpolation_name << "_" << size.width << "_" << size.height
+        << ".png";
+    std::string img_name = oss.str();
+
+    // These images have been obtained using Pillow from python.
+    // In particular, each image is loaded and saved using OpenCV but the resize
     // operation is done with Pillow (using bilinear interpolation).
     // We noticed that if the image is loaded/saved using Pillow the results are slightly different.
-    cv::Mat input_dest =
-        cv::imread((base_path / img_path).string(), cv::IMREAD_COLOR);
+    cv::Mat input_dest = cv::imread(base_path / img_name, cv::IMREAD_COLOR);
 
     cv::Size dst_size(input_dest.size().width, input_dest.size().height);
 
@@ -45,44 +56,34 @@ TEST_P(ResizeTest, TestEqualColor)
     ASSERT_EQ(diff_non_zero, 0);
 }
 
-// TEST_P(ResizeTest, TestEqualGray)
-// {
-//     auto [img_path, interpolation_method] = GetParam();
+TEST_P(ResizeTest, TestEqualGray)
+{
+    auto [size, interpolation_method] = GetParam();
 
-//     cv::Mat input =
-//         cv::imread((base_path / "glare.png").string(), cv::IMREAD_GRAYSCALE);
+    cv::Mat input = cv::imread(base_path / "test.png", cv::IMREAD_COLOR);
+    cv::cvtColor(input, input, cv::COLOR_BGR2GRAY);
 
-//     // This image has been obtained using Pillow from python.
-//     // In particular, the image is loaded and saved using OpenCV but the resize
-//     // operation is done with Pillow (using bilinear interpolation).
-//     // We noticed that if the image is loaded/saved using Pillow the results are slightly different.
-//     cv::Mat input_dest =
-//         cv::imread((base_path / img_path).string(), cv::IMREAD_GRAYSCALE);
+    const auto interpolation_name = interpolation_names[interpolation_method];
+    std::ostringstream oss;
+    oss << interpolation_name << "_" << size.width << "_" << size.height
+        << "_gray.png";
+    std::string img_name = oss.str();
 
-//     cv::Size dst_size(input_dest.size().width, input_dest.size().height);
+    cv::Mat input_dest = cv::imread(base_path / img_name, cv::IMREAD_GRAYSCALE);
 
-//     cv::Mat out = PillowResize::resize(input, dst_size, interpolation_method);
-//     cv::Mat res_compare;
-//     cv::compare(out, input_dest, res_compare, cv::CMP_NE);
-//     int diff_non_zero = cv::countNonZero(res_compare);
-//     ASSERT_EQ(diff_non_zero, 0);
-// }
+    cv::Size dst_size(input_dest.size().width, input_dest.size().height);
 
-INSTANTIATE_TEST_SUITE_P(
-    ResizeGroup,
-    ResizeTest,
-    testing::Values(
-        // std::make_tuple(
-        //     "nearest_400_600.png",
-        //     PillowResize::InterpolationMethods::INTERPOLATION_NEAREST),
-        // std::make_tuple(
-        //     "bilinear_400_600.png",
-        //     PillowResize::InterpolationMethods::INTERPOLATION_BILINEAR),
-        // std::make_tuple(
-        //     "glare_resized_bilinear.png",
-        //     PillowResize::InterpolationMethods::INTERPOLATION_BILINEAR),
-        std::make_tuple(
-            "bicubic.png",
-            PillowResize::InterpolationMethods::INTERPOLATION_BICUBIC)));
+    cv::Mat out = PillowResize::resize(input, dst_size, interpolation_method);
+    cv::Mat res_compare;
+    cv::compare(out, input_dest, res_compare, cv::CMP_NE);
+    int diff_non_zero = cv::countNonZero(res_compare);
+    ASSERT_EQ(diff_non_zero, 0);
+}
+
+INSTANTIATE_TEST_SUITE_P(ResizeGroup,
+                         ResizeTest,
+                         testing::Combine(testing::Values(cv::Size(600, 400),
+                                                          cv::Size(1200, 1000)),
+                                          testing::Values(0, 1, 2, 3, 4, 5)));
 
 }    // namespace
