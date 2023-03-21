@@ -36,7 +36,7 @@ make
 ```
 
 ### Test
-If you want to run also the tests, you need to install also [`gtest`](https://github.com/google/googletest).
+If you want to run also the tests, you need to install [`gtest`](https://github.com/google/googletest).
 
 ```bash
 cmake -DBUILD_TESTS=ON ..
