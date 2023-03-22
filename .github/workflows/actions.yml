@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ $default-branch ]
+    branches: [ "main" ]
   
 env:
   BUILD_TYPE: Release
@@ -17,9 +17,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    
-    - name: With OpenCV
-      uses: rayandrew/with-opencv-action@v1
+      with:
+        lfs: 'true'
+        submodules: 'recursive'
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install libgtest-dev libopencv-dev
     
     - name: configure
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DBUILD_TESTS=${{env.BUILD_TESTS}}
