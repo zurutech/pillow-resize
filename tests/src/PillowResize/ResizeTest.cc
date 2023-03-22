@@ -43,7 +43,8 @@ TEST_P(ResizeTest, TestEqualColor)
 {
     auto [size, interpolation_method] = GetParam();
 
-    cv::Mat input = cv::imread(base_path / "test.png", cv::IMREAD_COLOR);
+    cv::Mat input =
+        cv::imread((base_path / "test.png").string(), cv::IMREAD_COLOR);
 
     const auto interpolation_name = interpolation_names[interpolation_method];
     std::ostringstream oss;
@@ -55,7 +56,8 @@ TEST_P(ResizeTest, TestEqualColor)
     // In particular, each image is loaded and saved using OpenCV but the resize
     // operation is done with Pillow (using bilinear interpolation).
     // We noticed that if the image is loaded/saved using Pillow the results are slightly different.
-    cv::Mat input_dest = cv::imread(base_path / img_name, cv::IMREAD_COLOR);
+    cv::Mat input_dest =
+        cv::imread((base_path / img_name).string(), cv::IMREAD_COLOR);
 
     cv::Size dst_size(input_dest.size().width, input_dest.size().height);
 
@@ -71,7 +73,8 @@ TEST_P(ResizeTest, TestEqualGray)
 {
     auto [size, interpolation_method] = GetParam();
 
-    cv::Mat input = cv::imread(base_path / "test.png", cv::IMREAD_COLOR);
+    cv::Mat input =
+        cv::imread((base_path / "test.png").string(), cv::IMREAD_COLOR);
     cv::cvtColor(input, input, cv::COLOR_BGR2GRAY);
 
     const auto interpolation_name = interpolation_names[interpolation_method];
@@ -80,7 +83,8 @@ TEST_P(ResizeTest, TestEqualGray)
         << "_gray.png";
     std::string img_name = oss.str();
 
-    cv::Mat input_dest = cv::imread(base_path / img_name, cv::IMREAD_GRAYSCALE);
+    cv::Mat input_dest =
+        cv::imread((base_path / img_name).string(), cv::IMREAD_GRAYSCALE);
 
     cv::Size dst_size(input_dest.size().width, input_dest.size().height);
 
